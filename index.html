@@ -298,7 +298,6 @@ function updateDashboardProgress() {
     }
 }
 
-// DERİN SENKRONİZASYON: Günlük Hareketleri Buluta Detaylı Kaydeder
 function saveDinamikWorkout() {
     if (typeof database === 'undefined') { alert("Veritabanı bağlantısı yok kanka!"); return; }
     const day = document.getElementById('workout_day').value;
@@ -319,7 +318,6 @@ function saveDinamikWorkout() {
 
     cloudData[day] = true;
     
-    // Hem haftalık durumu güncelle hem de o güne ait hareket listesini kaydet
     Promise.all([
         database.ref('saved_workout_days').set(cloudData),
         database.ref('workout_details/' + day).set(exercises)
@@ -331,7 +329,6 @@ function saveDinamikWorkout() {
     }).catch((err) => { alert("Kayıt hatası: " + err.message); });
 }
 
-// Gün değiştiğinde o güne ait kayıtlı hareketleri ve setleri buluttan geri çeker
 function loadSavedWorkoutForDay() {
     if (typeof database === 'undefined') return;
     const day = document.getElementById('workout_day').value;
@@ -363,6 +360,7 @@ function filterHevyDatabase() {
     const cat = document.getElementById('hevy_filter_category').value;
     const keyword = document.getElementById('hevy_search_keyword').value.toLowerCase();
     const select = document.getElementById('hevy_results_select');
+    if(!select) return;
     select.innerHTML = '';
 
     hevyDatabase.forEach(ex => {
@@ -377,7 +375,7 @@ function filterHevyDatabase() {
 
 function addSelectedHevyExercise() {
     const select = document.getElementById('hevy_results_select');
-    if(!select.value) return;
+    if(!select || !select.value) return;
     createExerciseCardHtml(select.value);
 }
 
@@ -520,11 +518,21 @@ function syncWithAI() {
     });
 }
 
-// OTOMATİK VERİ GERİ YÜKLEME MOTORU (REFRESH FAİL-SAFE)
+// YENİLENME GÜVENLİK KİLİTLİ MOTORU
 window.onload = function() {
-    filterHevyDatabase();
-    loadSavedWorkoutForDay(); // Açılışta seçili günün hareketlerini getir
+    // 1. Telefonun/PC'nin gününü al ve seçeneği otomatik ayarla
+    const sistemGunu = new Date().getDay(); // 0=Pazar, 1=Pzt, 2=Salı...
+    const gunEslestir = ['paz', 'pzt', 'sal', 'car', 'per', 'cum', 'cts'];
+    const bugunKey = gunEslestir[sistemGunu];
     
+    if(document.getElementById('workout_day')) {
+        document.getElementById('workout_day').value = bugunKey;
+    }
+
+    // 2. Hevy listesini hazırla
+    filterHevyDatabase();
+    
+    // 3. Lokal ayarları çek
     const saved = JSON.parse(localStorage.getItem('app_settings'));
     if(saved) {
         document.getElementById('settings_theme').value = saved.theme || 'theme-crimson';
@@ -535,33 +543,39 @@ window.onload = function() {
         changeAppTheme();
     }
 
-    if (typeof database !== 'undefined') {
-        // Son Beslenme Verilerini Geri Yükle
-        database.ref('nutrition_latest').once('value').then((snapshot) => {
-            const nut = snapshot.val();
-            if(nut) {
-                if(document.getElementById('nut_calories')) document.getElementById('nut_calories').value = nut.cal || '';
-                if(document.getElementById('nut_protein')) document.getElementById('nut_protein').value = nut.prot || '';
-                if(document.getElementById('nut_carb')) document.getElementById('nut_carb').value = nut.carb || '';
-                if(document.getElementById('nut_fat')) document.getElementById('nut_fat').value = nut.fat || '';
-                if(document.getElementById('nut_summary')) document.getElementById('nut_summary').value = nut.note || '';
-            }
-        });
+    // FIREBASE GÜVENLİK KİLİDİ: Firebase'in yüklenmesi için 600ms bekle ve verileri getir
+    setTimeout(() => {
+        if (typeof database !== 'undefined') {
+            // Bugünün hareketlerini ve setlerini otomatik yükle
+            loadSavedWorkoutForDay();
 
-        // Son Supplement Verilerini Geri Yükle
-        database.ref('vitamins_latest').once('value').then((snapshot) => {
-            const vits = snapshot.val();
-            if(vits) {
-                if(document.getElementById('vit_creatine')) document.getElementById('vit_creatine').checked = vits.creatine || false;
-                if(document.getElementById('vit_multi')) document.getElementById('vit_multi').checked = vits.multi || false;
-                if(document.getElementById('vit_omega')) document.getElementById('vit_omega').checked = vits.omega || false;
-                if(document.getElementById('vit_d3')) document.getElementById('vit_d3').checked = vits.d3 || false;
-                if(document.getElementById('vit_mg')) document.getElementById('vit_mg').checked = vits.mg || false;
-                if(document.getElementById('vit_zinc')) document.getElementById('vit_zinc').checked = vits.zinc || false;
-                if(document.getElementById('vit_custom')) document.getElementById('vit_custom').value = vits.custom || '';
-            }
-        });
-    }
+            // Son Beslenme Verilerini Getir
+            database.ref('nutrition_latest').once('value').then((snapshot) => {
+                const nut = snapshot.val();
+                if(nut) {
+                    if(document.getElementById('nut_calories')) document.getElementById('nut_calories').value = nut.cal || '';
+                    if(document.getElementById('nut_protein')) document.getElementById('nut_protein').value = nut.prot || '';
+                    if(document.getElementById('nut_carb')) document.getElementById('nut_carb').value = nut.carb || '';
+                    if(document.getElementById('nut_fat')) document.getElementById('nut_fat').value = nut.fat || '';
+                    if(document.getElementById('nut_summary')) document.getElementById('nut_summary').value = nut.note || '';
+                }
+            });
+
+            // Son Supplement Verilerini Getir
+            database.ref('vitamins_latest').once('value').then((snapshot) => {
+                const vits = snapshot.val();
+                if(vits) {
+                    if(document.getElementById('vit_creatine')) document.getElementById('vit_creatine').checked = vits.creatine || false;
+                    if(document.getElementById('vit_multi')) document.getElementById('vit_multi').checked = vits.multi || false;
+                    if(document.getElementById('vit_omega')) document.getElementById('vit_omega').checked = vits.omega || false;
+                    if(document.getElementById('vit_d3')) document.getElementById('vit_d3').checked = vits.d3 || false;
+                    if(document.getElementById('vit_mg')) document.getElementById('vit_mg').checked = vits.mg || false;
+                    if(document.getElementById('vit_zinc')) document.getElementById('vit_zinc').checked = vits.zinc || false;
+                    if(document.getElementById('vit_custom')) document.getElementById('vit_custom').value = vits.custom || '';
+                }
+            });
+        }
+    }, 600);
 };
 </script> 
 </body> 
