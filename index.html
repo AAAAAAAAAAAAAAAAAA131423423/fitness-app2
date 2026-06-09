@@ -9,11 +9,8 @@
 
 <style> 
 /* TEMA TANIMLAMALARI */
-/* 1. Orijinal Dark Crimson */
 .theme-crimson { --bg-color: #000000; --panel-bg: #0a0404; --border-color: #8b0000; --accent-color: #b30000; --text-color: #cc3333; --muted-text: #661111; --active-tab: #1a0000; --success-color: #2e7d32; --danger-color: #c62828; --off-day-color: #424242; --input-text: #ff4d4d; } 
-/* 2. Pure Black (Siyah Tema) */
 .theme-black { --bg-color: #000000; --panel-bg: #121212; --border-color: #333333; --accent-color: #ffffff; --text-color: #e0e0e0; --muted-text: #666666; --active-tab: #222222; --success-color: #4caf50; --danger-color: #f44336; --off-day-color: #555555; --input-text: #ffffff; } 
-/* 3. Deep Navy (Lacivert Tema) */ 
 .theme-navy { --bg-color: #0a1128; --panel-bg: #001f54; --border-color: #1c7c94; --accent-color: #00b4d8; --text-color: #90e0ef; --muted-text: #0077b6; --active-tab: #03045e; --success-color: #2a9d8f; --danger-color: #e76f51; --off-day-color: #4a5759; --input-text: #caf0f8; } 
 
 body { background-color: var(--bg-color); color: var(--text-color); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; box-sizing: border-box; transition: background-color 0.3s, color 0.3s; } 
@@ -108,7 +105,7 @@ select:focus, input:focus, textarea:focus { outline: none; border-color: var(--a
  <div class="config-row"> 
  <div class="config-item"> 
  <label>Hangi Günün Antrenmanı?</label> 
- <select id="workout_day"> 
+ <select id="workout_day" onchange="loadSavedWorkoutForDay()"> 
  <option value="pzt">Pazartesi</option> 
  <option value="sal">Salı</option> 
  <option value="car">Çarşamba</option> 
@@ -208,14 +205,13 @@ const firebaseConfig = {
     measurementId: "G-PHP62WQV5D"
 };
 
-// Hata ayıklama fonksiyonu ile zorlama başlatma
 try {
     if (typeof firebase === 'undefined') {
-        throw new Error("Firebase kütüphaneleri yüklenemedi! İnternet bağlantını kontrol et veya tarayıcı eklentilerini (Adblock vb.) kapat.");
+        throw new Error("Firebase yüklenemedi! Adblocker'ı kapat kanka.");
     }
     firebase.initializeApp(firebaseConfig);
     var database = firebase.database();
-    document.getElementById("cloud-indicator").textContent = "⚡ Firebase Hazır, Veri Bekleniyor...";
+    document.getElementById("cloud-indicator").textContent = "⚡ Bulut Eşitlendi (Canlı)";
 } catch (e) {
     document.getElementById("cloud-indicator").textContent = "❌ Hata: " + e.message;
     document.getElementById("cloud-indicator").style.color = "#ff5252";
@@ -256,22 +252,10 @@ function switchTab(tabId) {
  if(tabId === 'tab-anamenu') updateDashboardProgress(); 
 }
 
-// BULUT DİNLEYİCİ MOTORU - GÜVENLİ DURUM KONTROLÜ
 if (typeof database !== 'undefined') {
     database.ref('saved_workout_days').on('value', (snapshot) => {
         cloudData = snapshot.val() || {};
-        const indicator = document.getElementById("cloud-indicator");
-        if(indicator) {
-            indicator.textContent = "☁️ Bulut Eşitlendi (Canlı)";
-            indicator.style.color = "#4caf50";
-        }
         updateDashboardProgress();
-    }, (error) => {
-        const indicator = document.getElementById("cloud-indicator");
-        if(indicator) {
-            indicator.textContent = "❌ İzin Hatası: Rules kontrol et.";
-            indicator.style.color = "#ff5252";
-        }
     });
 }
 
@@ -314,28 +298,65 @@ function updateDashboardProgress() {
     }
 }
 
+// DERİN SENKRONİZASYON: Günlük Hareketleri Buluta Detaylı Kaydeder
 function saveDinamikWorkout() {
     if (typeof database === 'undefined') { alert("Veritabanı bağlantısı yok kanka!"); return; }
     const day = document.getElementById('workout_day').value;
+    
+    const exercises = [];
+    document.querySelectorAll('.exercise-card').forEach(card => {
+        const title = card.querySelector('.exercise-title').textContent;
+        const sets = [];
+        card.querySelectorAll('.set-row').forEach(row => {
+            const inputs = row.querySelectorAll('input');
+            sets.push({
+                kg: inputs[0].value || '',
+                rep: inputs[1].value || ''
+            });
+        });
+        exercises.push({ name: title, sets: sets });
+    });
+
     cloudData[day] = true;
     
-    database.ref('saved_workout_days').set(cloudData)
-    .then(() => {
+    // Hem haftalık durumu güncelle hem de o güne ait hareket listesini kaydet
+    Promise.all([
+        database.ref('saved_workout_days').set(cloudData),
+        database.ref('workout_details/' + day).set(exercises)
+    ]).then(() => {
         if(document.getElementById('set_save_confirm').checked) {
-            alert("Antrenman raporu bulut veritabanına gönderildi kanka!");
+            alert("Antrenman ve set detayları buluta kaydedildi kanka!");
         }
         updateDashboardProgress();
-    })
-    .catch((err) => { alert("Kayıt hatası: " + err.message); });
+    }).catch((err) => { alert("Kayıt hatası: " + err.message); });
+}
+
+// Gün değiştiğinde o güne ait kayıtlı hareketleri ve setleri buluttan geri çeker
+function loadSavedWorkoutForDay() {
+    if (typeof database === 'undefined') return;
+    const day = document.getElementById('workout_day').value;
+    const list = document.getElementById('exercises-list');
+    list.innerHTML = '';
+
+    database.ref('workout_details/' + day).once('value').then((snapshot) => {
+        const exercises = snapshot.val();
+        if(exercises && exercises.length > 0) {
+            exercises.forEach(ex => {
+                createExerciseCardHtml(ex.name, ex.sets);
+            });
+        }
+    });
 }
 
 function setDayAsOffDay() {
     if (typeof database === 'undefined') { alert("Veritabanı bağlantısı yok kanka!"); return; }
     const day = document.getElementById('workout_day').value;
     cloudData[day] = 'off';
-    database.ref('saved_workout_days').set(cloudData)
-    .then(() => { updateDashboardProgress(); })
-    .catch((err) => { alert("Hata: " + err.message); });
+    database.ref('saved_workout_days').set(cloudData).then(() => { 
+        database.ref('workout_details/' + day).remove();
+        document.getElementById('exercises-list').innerHTML = '';
+        updateDashboardProgress(); 
+    });
 }
 
 function filterHevyDatabase() {
@@ -371,22 +392,36 @@ function loadSplitTemplate() {
     });
 }
 
-function createExerciseCardHtml(name) {
+function createExerciseCardHtml(name, savedSets = null) {
     const container = document.getElementById('exercises-list');
     const card = document.createElement('div');
     card.className = 'exercise-card';
+    
+    let setsHtml = '';
+    if(savedSets && savedSets.length > 0) {
+        savedSets.forEach((s, idx) => {
+            setsHtml += `
+                <div class="set-row">
+                    <span class="set-label">Set ${idx + 1}</span>
+                    <input type="number" placeholder="KG" value="${s.kg}">
+                    <input type="number" placeholder="Tekrar" value="${s.rep}">
+                </div>`;
+        });
+    } else {
+        setsHtml = `
+            <div class="set-row">
+                <span class="set-label">Set 1</span>
+                <input type="number" placeholder="KG">
+                <input type="number" placeholder="Tekrar">
+            </div>`;
+    }
+
     card.innerHTML = `
         <div class="exercise-header">
             <div class="exercise-title">${name}</div>
             <button class="action-btn btn-danger btn-sm" onclick="this.parentElement.parentElement.remove()">Sil</button>
         </div>
-        <div class="set-container">
-            <div class="set-row">
-                <span class="set-label">Set 1</span>
-                <input type="number" placeholder="KG">
-                <input type="number" placeholder="Tekrar">
-            </div>
-        </div>
+        <div class="set-container">${setsHtml}</div>
         <button class="action-btn btn-success btn-sm" onclick="addSetRowToCard(this)">➕ Set Ekle</button>
     `;
     container.appendChild(card);
@@ -485,8 +520,11 @@ function syncWithAI() {
     });
 }
 
+// OTOMATİK VERİ GERİ YÜKLEME MOTORU (REFRESH FAİL-SAFE)
 window.onload = function() {
     filterHevyDatabase();
+    loadSavedWorkoutForDay(); // Açılışta seçili günün hareketlerini getir
+    
     const saved = JSON.parse(localStorage.getItem('app_settings'));
     if(saved) {
         document.getElementById('settings_theme').value = saved.theme || 'theme-crimson';
@@ -495,6 +533,34 @@ window.onload = function() {
         document.getElementById('set_audio_alert').checked = saved.audio ?? true;
         document.getElementById('set_save_confirm').checked = saved.confirm ?? true;
         changeAppTheme();
+    }
+
+    if (typeof database !== 'undefined') {
+        // Son Beslenme Verilerini Geri Yükle
+        database.ref('nutrition_latest').once('value').then((snapshot) => {
+            const nut = snapshot.val();
+            if(nut) {
+                if(document.getElementById('nut_calories')) document.getElementById('nut_calories').value = nut.cal || '';
+                if(document.getElementById('nut_protein')) document.getElementById('nut_protein').value = nut.prot || '';
+                if(document.getElementById('nut_carb')) document.getElementById('nut_carb').value = nut.carb || '';
+                if(document.getElementById('nut_fat')) document.getElementById('nut_fat').value = nut.fat || '';
+                if(document.getElementById('nut_summary')) document.getElementById('nut_summary').value = nut.note || '';
+            }
+        });
+
+        // Son Supplement Verilerini Geri Yükle
+        database.ref('vitamins_latest').once('value').then((snapshot) => {
+            const vits = snapshot.val();
+            if(vits) {
+                if(document.getElementById('vit_creatine')) document.getElementById('vit_creatine').checked = vits.creatine || false;
+                if(document.getElementById('vit_multi')) document.getElementById('vit_multi').checked = vits.multi || false;
+                if(document.getElementById('vit_omega')) document.getElementById('vit_omega').checked = vits.omega || false;
+                if(document.getElementById('vit_d3')) document.getElementById('vit_d3').checked = vits.d3 || false;
+                if(document.getElementById('vit_mg')) document.getElementById('vit_mg').checked = vits.mg || false;
+                if(document.getElementById('vit_zinc')) document.getElementById('vit_zinc').checked = vits.zinc || false;
+                if(document.getElementById('vit_custom')) document.getElementById('vit_custom').value = vits.custom || '';
+            }
+        });
     }
 };
 </script> 
