@@ -2,45 +2,67 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>FITNESS V.1</title>
+    <title>FİTNESS ENGINE V.1</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: #fff; padding: 20px; }
+        #status { color: #00ff00; margin-bottom: 15px; font-weight: bold; }
+        .box { background: #1e1e1e; padding: 20px; border-radius: 8px; border: 1px solid #333; }
+    </style>
 </head>
 <body>
-    <div id="status">☁️ Bağlanıyor...</div>
-    <div id="app">
+
+    <div class="box">
+        <div id="status">☁️ Bağlanıyor...</div>
         <select id="gun">
             <option value="pzt">Pazartesi</option>
             <option value="sal">Salı</option>
+            <option value="car">Çarşamba</option>
+            <option value="per">Perşembe</option>
+            <option value="cum">Cuma</option>
+            <option value="cts">Cumartesi</option>
+            <option value="paz">Pazar</option>
         </select>
         <button onclick="kaydet()">KAYDET</button>
     </div>
 
     <script>
         const firebaseConfig = {
-    apiKey: "AIzaSycjwH4qtc41tc-Hsb6bPEEg5OycZHIgMl8",
-    authDomain: "fitnessprogrami1.firebaseapp.com",
-    databaseURL: "https://fitnessprogrami1-default-rtdb.europe-west1.firebasedatabase.app/", // <-- BURAYI GÜNCELLEDİK
-    projectId: "fitnessprogrami1",
-    storageBucket: "fitnessprogrami1.firebasestorage.app",
-    messagingSenderId: "80435205342",
-    appId: "1:80435205342:web:e265b3c7cfce1b43193a4f"
+            apiKey: "AIzaSycjwH4qtc41tc-Hsb6bPEEg5OycZHIgMl8",
+            authDomain: "fitnessprogrami1.firebaseapp.com",
+            // ÖNEMLİ: Europe-West1 Bölge Ayarı
+            databaseURL: "https://fitnessprogrami1-default-rtdb.europe-west1.firebasedatabase.app/",
+            projectId: "fitnessprogrami1",
+            storageBucket: "fitnessprogrami1.firebasestorage.app",
+            messagingSenderId: "80435205342",
+            appId: "1:80435205342:web:e265b3c7cfce1b43193a4f"
         };
-        firebase.initializeApp(firebaseConfig);
+
+        // Firebase başlatma - Hata almamak için kontrol
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
         const db = firebase.database();
 
+        // Veriyi kaydeden fonksiyon
         function kaydet() {
             const gun = document.getElementById('gun').value;
-            // Veriyi tam olarak 'saved_workout_days' altına yazıyoruz
-            db.ref('saved_workout_days/' + gun).set({ tamamlandi: true, tarih: new Date().toISOString() })
-            .then(() => alert("Kayıt Başarılı!"))
+            db.ref('saved_workout_days/' + gun).set({ 
+                tamamlandi: true, 
+                tarih: new Date().toLocaleString() 
+            })
+            .then(() => {
+                alert("Kayıt Başarılı!");
+                location.reload(); // Değişikliği görmek için sayfayı yenile
+            })
             .catch(err => alert("Hata: " + err.message));
         }
 
-        // Sayfa açıldığında veriyi kontrol et
+        // Buluttaki veriyi dinleyen (anlık çeken) fonksiyon
         db.ref('saved_workout_days').on('value', (snap) => {
-            console.log("Buluttaki güncel veri:", snap.val());
-            document.getElementById('status').innerText = "✅ Senkronize: " + JSON.stringify(snap.val());
+            const data = snap.val();
+            document.getElementById('status').innerText = "✅ Senkronize: " + JSON.stringify(data);
         });
     </script>
 </body>
