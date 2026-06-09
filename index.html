@@ -46,17 +46,24 @@
         const db = firebase.database();
 
         // Veriyi kaydeden fonksiyon
-        function kaydet() {
+function kaydet() {
             const gun = document.getElementById('gun').value;
-            db.ref('saved_workout_days/' + gun).set({ 
+            console.log("Kayıt başlatılıyor, gün:", gun);
+            // Veriyi yazmayı dene
+            const ref = db.ref('saved_workout_days/' + gun);
+            ref.set({ 
                 tamamlandi: true, 
                 tarih: new Date().toLocaleString() 
             })
             .then(() => {
+                console.log("Firebase'den yanıt geldi: BAŞARILI");
                 alert("Kayıt Başarılı!");
-                location.reload(); // Değişikliği görmek için sayfayı yenile
+                location.reload();
             })
-            .catch(err => alert("Hata: " + err.message));
+            .catch(err => {
+                console.error("HATA OLUŞTU:", err);
+                alert("Hata: " + err.message);
+            });
         }
 
         // Buluttaki veriyi dinleyen (anlık çeken) fonksiyon
