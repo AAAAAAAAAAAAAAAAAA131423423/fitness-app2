@@ -68,9 +68,15 @@ function kaydet() {
 
         // Buluttaki veriyi dinleyen (anlık çeken) fonksiyon
         db.ref('saved_workout_days').on('value', (snap) => {
-            const data = snap.val();
-            document.getElementById('status').innerText = "✅ Senkronize: " + JSON.stringify(data);
-        });
+    const data = snap.val();
+    if (!data) return;
+    // Önce tüm kutucukları temizle/işaretsiz yap
+    // (Senin HTML'inde checkbox veya inputların varsa burada seçiyoruz)
+    // Örnek: Eğer Pzt verisi varsa Pazartesi yazısını yeşil yapalım
+    if (data.pzt) {
+        console.log("Pazartesi antrenmanı tamamlanmış görünüyor.");// Buraya o günün yanına bir "TAMAMLANDI" işareti koyan kod gelecek
+    }
+});
     </script>
 </body>
 </html>
