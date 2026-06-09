@@ -190,7 +190,7 @@ select:focus, input:focus, textarea:focus { outline: none; border-color: var(--a
  <label><input type="checkbox" id="set_save_confirm" onchange="saveSettings()"> Kayıt işlemlerinde onay penceresi göster</label> </div> </div> 
  <div class="config-item" style="margin-top:10px; border-top:1px dashed var(--muted-text); padding-top:15px;"> 
  <label style="color:var(--danger-color);">⚠️ TEHLİKELİ BÖLGE</label> 
- <p style="font-size:11px; color:var(--muted-text); margin:5px 0 10px 0;">Tüm lokal verileri ve antrenman geçmişini kalıcı olarak siler.</p> 
+ <p style="font-size:11px; color:var(--muted-text); margin:5px 0 10px 0;">Tüm lokal verileri og antrenman geçmişini kalıcı olarak siler.</p> 
  <button class="action-btn btn-danger btn-sm" style="width:150px; height:35px;" onclick="clearAllData()">VERİLERİ SIFIRLA</button> </div> </div> </div> </div> </div> </div> 
 
 <script> 
@@ -259,9 +259,12 @@ if (typeof database !== 'undefined') {
     });
 }
 
+// CRITICAL FIX: Ekran çizimlerini bindirmeyen temizleyicili yeni fonksiyon
 function updateDashboardProgress() {
     const container = document.getElementById('days-progress-container');
     if(!container) return;
+    
+    // Ekranda kalan eski çizgileri tamamen temizle
     container.innerHTML = '';
     
     const dayNamesFull = ['pazartesi', 'salı', 'çarşamba', 'perşembe', 'cuma', 'cumartesi', 'pazar'];
@@ -520,8 +523,7 @@ function syncWithAI() {
 
 // YENİLENME GÜVENLİK KİLİTLİ MOTORU
 window.onload = function() {
-    // 1. Telefonun/PC'nin gününü al ve seçeneği otomatik ayarla
-    const sistemGunu = new Date().getDay(); // 0=Pazar, 1=Pzt, 2=Salı...
+    const sistemGunu = new Date().getDay(); 
     const gunEslestir = ['paz', 'pzt', 'sal', 'car', 'per', 'cum', 'cts'];
     const bugunKey = gunEslestir[sistemGunu];
     
@@ -529,10 +531,8 @@ window.onload = function() {
         document.getElementById('workout_day').value = bugunKey;
     }
 
-    // 2. Hevy listesini hazırla
     filterHevyDatabase();
     
-    // 3. Lokal ayarları çek
     const saved = JSON.parse(localStorage.getItem('app_settings'));
     if(saved) {
         document.getElementById('settings_theme').value = saved.theme || 'theme-crimson';
@@ -543,13 +543,10 @@ window.onload = function() {
         changeAppTheme();
     }
 
-    // FIREBASE GÜVENLİK KİLİDİ: Firebase'in yüklenmesi için 600ms bekle ve verileri getir
     setTimeout(() => {
         if (typeof database !== 'undefined') {
-            // Bugünün hareketlerini ve setlerini otomatik yükle
             loadSavedWorkoutForDay();
 
-            // Son Beslenme Verilerini Getir
             database.ref('nutrition_latest').once('value').then((snapshot) => {
                 const nut = snapshot.val();
                 if(nut) {
@@ -561,7 +558,6 @@ window.onload = function() {
                 }
             });
 
-            // Son Supplement Verilerini Getir
             database.ref('vitamins_latest').once('value').then((snapshot) => {
                 const vits = snapshot.val();
                 if(vits) {
